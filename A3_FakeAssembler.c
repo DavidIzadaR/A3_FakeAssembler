@@ -6,6 +6,21 @@
 #include <string.h>
 #include <ctype.h>
 
+ 
+struct MachineStatement
+{
+    short Parm : 4;
+    short RegB : 4;
+    short RegA : 4;
+    short op : 4;
+};
+
+union Statement
+{
+    struct  MachineStatement S;
+    short   C;
+};
+
 int RegNumber(char s[])
 {
     if (s[0] != 'r')
@@ -39,15 +54,15 @@ int main(int argc, char *argv[])
         exit(2);
     }
 
-    FILE* oFile = fopen(argv[2], "w");
+    int B = (toupper(argv[3][0]) == 'B');
+    printf("Output will be %s\n", B ? "Binary" : "Text");
+
+    FILE* oFile = fopen(argv[2], B ? "wb" : "w");
     if (oFile == NULL)
     {
         printf("Error: cannot open %s for writing\n", argv[2]);
         exit(2);
     }
-
-    int B = (toupper(argv[3][0]) == 'B');
-    printf("Output will be %s\n", B ? "Binary" : "Text");
 
     char op[10] = "operator";   // assembler statement/operator
     char op1[4] = "r99";  // parameter 1
@@ -57,8 +72,9 @@ int main(int argc, char *argv[])
     int RegA = -1;  // Register # for Op1
     int RegB = -1;  // Register # for Op2
     int RegC = -1;  // Register # for Op3
-    int ValC = 0;   // Immediate constant instead of RegC
+    unsigned char ValC  = 0;   // Immediate constant instead of RegC
     unsigned char ByteC = 0;
+    union Statement s;
 
     while (fscanf(iFile, "%s %s %s %s\n", op, op1, op2, op3) > 0)
     {
@@ -67,36 +83,66 @@ int main(int argc, char *argv[])
         RegC = RegNumber(op3);
 
         if (RegC == -1)
-        {
-            ValC = atoi(op3);
-            ByteC = (unsigned char)((int)ValC & 0xF);
-        }
+            ValC = atoi(op3) & 0xF;
         
+        s.S.RegA = RegA;
+        s.S.RegB = RegB;
         if ((strcmp(op, "add") == 0) && (RegC != -1))
-            fprintf(oFile, "%#06x ", 0x0000 | RegA << 8 | RegB << 4 | RegC);
-        else if ((strcmp(op, "addi") == 0) && (RegC == -1) && (ValC >= -8) & (ValC <= 7))
-            fprintf(oFile, "%#06x ", 0x1000 | RegA << 8 | RegB << 4 | ByteC);
+        {
+            s.S.op = 0x0;
+            s.S.Parm = RegC;
+        }
+        else if ((strcmp(op, "addi") == 0) && (RegC == -1))
+        {
+            s.S.op = 0x1;
+            s.S.Parm = ValC;
+        }
         else if ((strcmp(op, "nand") == 0) && (RegC != -1))
-            fprintf(oFile, "%#06x ", 0x2000 | RegA << 8 | RegB << 4 | RegC);
+        {
+            s.S.op = 0x2;
+            s.S.Parm = RegC;
+        }
         else if ((strcmp(op, "or") == 0) && (RegC != -1))
-            fprintf(oFile, "%#06x ", 0x3000 | RegA << 8 | RegB << 4 | RegC);
+        {
+            s.S.op = 0x3;
+            s.S.Parm = RegC;
+        }
         else if ((strcmp(op, "mul") == 0) && (RegC != -1))
-            fprintf(oFile, "%#06x ", 0x4000 | RegA << 8 | RegB << 4 | RegC);
-        else if ((strcmp(op, "lw") == 0) && (RegC == -1) && (ValC >= -8) & (ValC <= 7))
-            fprintf(oFile, "%#06x ", 0x5000 | RegA << 8 | RegB << 4 | ByteC);
-        else if ((strcmp(op, "sw") == 0) && (RegC == -1) && (ValC >= -8) & (ValC <= 7))
-            fprintf(oFile, "%#06x ", 0x6000 | RegA << 8 | RegB << 4 | ByteC);
-        else if ((strcmp(op, "bne") == 0) && (RegC == -1) && (ValC >= -8) & (ValC <= 7))
-            fprintf(oFile, "%#06x ", 0x7000 | RegA << 8 | RegB << 4 | ByteC);
+        {
+            s.S.op = 0x4;
+            s.S.Parm = ValC;
+        }
+        else if ((strcmp(op, "lw") == 0) && (RegC == -1))
+        {
+            s.S.op = 0x5;
+            s.S.Parm = ValC;
+        }
+        else if ((strcmp(op, "sw") == 0) && (RegC == -1))
+        {
+            s.S.op = 0x6;
+            s.S.Parm = ValC;
+        }
+        else if ((strcmp(op, "bne") == 0) && (RegC == -1))
+        {
+            s.S.op = 0x7;
+            s.S.Parm = ValC;
+        }
         else
             exit(3);
 
-        fprintf(oFile, "  ; // % s % s % s ", op, op1, op2);
-        if (RegC < 0)
-            fprintf(oFile, "%d", ValC);
+        if (B)
+            fwrite(&s.C, sizeof(short), 1, oFile);
         else
-            fprintf(oFile, "%s", op3);
-        fprintf(oFile, "\n");
+        {
+            fprintf(oFile, "%#06x ", s.C);
+
+            fprintf(oFile, "  // % s % s % s ", op, op1, op2);
+            if (RegC < 0)
+                fprintf(oFile, "%d", ValC);
+            else
+                fprintf(oFile, "%s", op3);
+            fprintf(oFile, "\n");
+        };
     }
     fclose(oFile);
     fclose(iFile);
