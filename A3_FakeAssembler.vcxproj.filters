@@ -23,6 +23,9 @@
     <None Include="Prog.asm">
       <Filter>Resource Files</Filter>
     </None>
+    <None Include="Prog.bin">
+      <Filter>Resource Files</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <Text Include="Prog.txt">

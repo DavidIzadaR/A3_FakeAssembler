@@ -143,6 +143,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="Prog.asm" />
+    <None Include="Prog.bin" />
   </ItemGroup>
   <ItemGroup>
     <Text Include="Prog.txt" />
